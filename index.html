@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pembaca Angka 3 dan Angka 5</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        text-align: center;
+        background: #f4f6fb;
+        margin: 0;
+        padding: 30px 15px;
+        color: #222;
+    }
+    h1 { margin-bottom: 5px; }
+    p.sub { margin-top: 0; color: #666; }
+    button {
+        padding: 12px 30px;
+        font-size: 16px;
+        border: none;
+        border-radius: 8px;
+        background: #3b6ef5;
+        color: #fff;
+        cursor: pointer;
+    }
+    button:disabled { background: #999; cursor: default; }
+    #webcam-container { margin: 20px auto; }
+    #webcam-container canvas { border-radius: 12px; border: 3px solid #3b6ef5; }
+    #hasil { font-size: 28px; font-weight: bold; margin: 15px 0; min-height: 40px; }
+    #label-container div { font-size: 18px; margin: 4px 0; }
+    #status { color: #c0392b; }
+</style>
+</head>
+<body>
+
+<h1>Pembaca Angka 3 dan Angka 5</h1>
+<p class="sub">Tunjukkan angka 3 atau angka 5 ke kamera</p>
+
+<button type="button" id="btn-start" onclick="init()">Start</button>
+<p id="status"></p>
+
+<div id="webcam-container"></div>
+<div id="hasil"></div>
+<div id="label-container"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@1.3.1/dist/tf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@teachablemachine/image@0.8/dist/teachablemachine-image.min.js"></script>
+<script type="text/javascript">
+    // Folder model (berisi model.json, metadata.json, weights.bin)
+    const URL = "./my_model/";
+
+    let model, webcam, labelContainer, maxPredictions;
+
+    async function init() {
+        const btn = document.getElementById("btn-start");
+        const status = document.getElementById("status");
+        btn.disabled = true;
+        btn.textContent = "Memuat...";
+        status.textContent = "";
+
+        try {
+            const modelURL = URL + "model.json";
+            const metadataURL = URL + "metadata.json";
+
+            model = await tmImage.load(modelURL, metadataURL);
+            maxPredictions = model.getTotalClasses();
+
+            const flip = true;
+            webcam = new tmImage.Webcam(300, 300, flip);
+            await webcam.setup();
+            await webcam.play();
+            window.requestAnimationFrame(loop);
+
+            document.getElementById("webcam-container").appendChild(webcam.canvas);
+            labelContainer = document.getElementById("label-container");
+            for (let i = 0; i < maxPredictions; i++) {
+                labelContainer.appendChild(document.createElement("div"));
+            }
+            btn.style.display = "none";
+        } catch (err) {
+            console.error(err);
+            status.textContent = "Gagal memulai: pastikan folder my_model ada, kamera diizinkan, dan halaman dibuka lewat localhost/server.";
+            btn.disabled = false;
+            btn.textContent = "Start";
+        }
+    }
+
+    async function loop() {
+        webcam.update();
+        await predict();
+        window.requestAnimationFrame(loop);
+    }
+
+    async function predict() {
+        const prediction = await model.predict(webcam.canvas);
+        let terbaik = prediction[0];
+        for (let i = 0; i < maxPredictions; i++) {
+            labelContainer.childNodes[i].innerHTML =
+                prediction[i].className + ": " + prediction[i].probability.toFixed(2);
+            if (prediction[i].probability > terbaik.probability) terbaik = prediction[i];
+        }
+        document.getElementById("hasil").textContent =
+            "Terdeteksi: " + terbaik.className + " (" + (terbaik.probability * 100).toFixed(0) + "%)";
+    }
+</script>
+</body>
+</html>
